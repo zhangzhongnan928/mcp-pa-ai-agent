@@ -103,9 +103,7 @@ export async function getEvents(client, options) {
       orderBy: 'startTime',
     });
 
-    logger.info(`Successfully fetched ${response.data.items.length} events`);
-    
-    // Transform events to a cleaner format
+    // Transform and return events
     return response.data.items.map(event => ({
       id: event.id,
       summary: event.summary,
@@ -113,16 +111,14 @@ export async function getEvents(client, options) {
       location: event.location,
       start: event.start.dateTime || event.start.date,
       end: event.end.dateTime || event.end.date,
-      organizer: event.organizer ? event.organizer.email : null,
       attendees: event.attendees ? event.attendees.map(a => a.email) : [],
-      status: event.status,
-      htmlLink: event.htmlLink,
+      link: event.htmlLink,
       created: event.created,
       updated: event.updated,
     }));
   } catch (error) {
-    logger.error(`Failed to fetch events from Google Calendar: ${error.message}`);
-    throw new Error(`Failed to fetch events from Google Calendar: ${error.message}`);
+    logger.error(`Failed to fetch Google Calendar events: ${error.message}`);
+    throw new Error(`Failed to fetch calendar events: ${error.message}`);
   }
 }
 
@@ -134,58 +130,51 @@ export async function getEvents(client, options) {
  */
 export async function createEvent(client, eventData) {
   try {
-    const { 
-      calendarId, 
-      summary, 
-      startDateTime, 
-      endDateTime, 
-      description, 
-      location, 
-      attendees 
-    } = eventData;
+    const { calendarId, summary, startDateTime, endDateTime, description, location, attendees } = eventData;
 
-    logger.info(`Creating event in Google Calendar ${calendarId}`);
+    logger.info(`Creating event "${summary}" in Google Calendar ${calendarId}`);
 
-    // Format start and end times
-    const start = formatEventDateTime(startDateTime);
-    const end = formatEventDateTime(endDateTime || addHour(startDateTime));
-
-    // Format attendees if provided
-    const formattedAttendees = attendees 
-      ? attendees.map(email => ({ email })) 
-      : undefined;
-
-    // Create event
+    // Prepare event resource
     const event = {
       summary,
       description,
       location,
-      start,
-      end,
-      attendees: formattedAttendees,
+      start: {
+        dateTime: new Date(startDateTime).toISOString(),
+        timeZone: config.user.timezone,
+      },
+      end: {
+        dateTime: endDateTime ? new Date(endDateTime).toISOString() : new Date(new Date(startDateTime).getTime() + 3600000).toISOString(),
+        timeZone: config.user.timezone,
+      },
     };
 
+    // Add attendees if provided
+    if (attendees && attendees.length > 0) {
+      event.attendees = attendees.map(email => ({ email }));
+    }
+
+    // Insert event
     const response = await client.events.insert({
       calendarId,
       resource: event,
-      sendUpdates: 'all', // Notify attendees
+      sendUpdates: 'all',
     });
 
-    logger.info(`Successfully created event with ID: ${response.data.id}`);
-    
+    // Return created event
     return {
       id: response.data.id,
       summary: response.data.summary,
       description: response.data.description,
       location: response.data.location,
-      start: response.data.start.dateTime || response.data.start.date,
-      end: response.data.end.dateTime || response.data.end.date,
-      htmlLink: response.data.htmlLink,
+      start: response.data.start.dateTime,
+      end: response.data.end.dateTime,
       attendees: response.data.attendees ? response.data.attendees.map(a => a.email) : [],
+      link: response.data.htmlLink,
     };
   } catch (error) {
-    logger.error(`Failed to create event in Google Calendar: ${error.message}`);
-    throw new Error(`Failed to create event in Google Calendar: ${error.message}`);
+    logger.error(`Failed to create Google Calendar event: ${error.message}`);
+    throw new Error(`Failed to create calendar event: ${error.message}`);
   }
 }
 
@@ -197,80 +186,71 @@ export async function createEvent(client, eventData) {
  */
 export async function updateEvent(client, eventData) {
   try {
-    const { 
-      calendarId, 
-      eventId, 
-      summary, 
-      startDateTime, 
-      endDateTime, 
-      description, 
-      location, 
-      attendees 
-    } = eventData;
+    const { calendarId, eventId, summary, startDateTime, endDateTime, description, location, attendees } = eventData;
 
     logger.info(`Updating event ${eventId} in Google Calendar ${calendarId}`);
 
-    // First, get the current event
-    const currentEvent = await client.events.get({
+    // First get the existing event
+    const existingEvent = await client.events.get({
       calendarId,
       eventId,
     });
 
-    // Format start and end times if provided
-    const start = startDateTime 
-      ? formatEventDateTime(startDateTime) 
-      : currentEvent.data.start;
-      
-    const end = endDateTime 
-      ? formatEventDateTime(endDateTime) 
-      : currentEvent.data.end;
+    // Prepare update with only the provided fields
+    const updatedEvent = { ...existingEvent.data };
+    
+    if (summary) updatedEvent.summary = summary;
+    if (description) updatedEvent.description = description;
+    if (location) updatedEvent.location = location;
+    
+    if (startDateTime) {
+      updatedEvent.start = {
+        dateTime: new Date(startDateTime).toISOString(),
+        timeZone: config.user.timezone,
+      };
+    }
+    
+    if (endDateTime) {
+      updatedEvent.end = {
+        dateTime: new Date(endDateTime).toISOString(),
+        timeZone: config.user.timezone,
+      };
+    }
+    
+    if (attendees) {
+      updatedEvent.attendees = attendees.map(email => ({ email }));
+    }
 
-    // Format attendees if provided
-    const formattedAttendees = attendees 
-      ? attendees.map(email => ({ email })) 
-      : currentEvent.data.attendees;
-
-    // Update event with new data or keep existing data
-    const event = {
-      summary: summary || currentEvent.data.summary,
-      description: description !== undefined ? description : currentEvent.data.description,
-      location: location !== undefined ? location : currentEvent.data.location,
-      start,
-      end,
-      attendees: formattedAttendees,
-    };
-
+    // Update event
     const response = await client.events.update({
       calendarId,
       eventId,
-      resource: event,
-      sendUpdates: 'all', // Notify attendees
+      resource: updatedEvent,
+      sendUpdates: 'all',
     });
 
-    logger.info(`Successfully updated event ${eventId}`);
-    
+    // Return updated event
     return {
       id: response.data.id,
       summary: response.data.summary,
       description: response.data.description,
       location: response.data.location,
-      start: response.data.start.dateTime || response.data.start.date,
-      end: response.data.end.dateTime || response.data.end.date,
-      htmlLink: response.data.htmlLink,
+      start: response.data.start.dateTime,
+      end: response.data.end.dateTime,
       attendees: response.data.attendees ? response.data.attendees.map(a => a.email) : [],
-      updated: response.data.updated,
+      link: response.data.htmlLink,
     };
   } catch (error) {
-    logger.error(`Failed to update event in Google Calendar: ${error.message}`);
-    throw new Error(`Failed to update event in Google Calendar: ${error.message}`);
+    logger.error(`Failed to update Google Calendar event: ${error.message}`);
+    throw new Error(`Failed to update calendar event: ${error.message}`);
   }
 }
 
 /**
  * Delete an event from Google Calendar
  * @param {Object} client - Google Calendar client
- * @param {Object} options - Options for deleting event
- * @returns {Promise<Object>} Result of the operation
+ * @param {Object} options - Delete options
+ * @returns {Promise<Object>} Result of deletion
  */
 export async function deleteEvent(client, options) {
   try {
@@ -278,23 +258,21 @@ export async function deleteEvent(client, options) {
 
     logger.info(`Deleting event ${eventId} from Google Calendar ${calendarId}`);
 
+    // Delete event
     await client.events.delete({
       calendarId,
       eventId,
-      sendUpdates: 'all', // Notify attendees
+      sendUpdates: 'all',
     });
 
-    logger.info(`Successfully deleted event ${eventId}`);
-    
+    // Return success
     return {
       success: true,
-      message: `Event ${eventId} has been deleted`,
-      eventId,
-      calendarId,
+      message: `Event ${eventId} deleted successfully`,
     };
   } catch (error) {
-    logger.error(`Failed to delete event from Google Calendar: ${error.message}`);
-    throw new Error(`Failed to delete event from Google Calendar: ${error.message}`);
+    logger.error(`Failed to delete Google Calendar event: ${error.message}`);
+    throw new Error(`Failed to delete calendar event: ${error.message}`);
   }
 }
 
@@ -305,12 +283,12 @@ export async function deleteEvent(client, options) {
  */
 export async function listCalendars(client) {
   try {
-    logger.info('Fetching available Google Calendars');
+    logger.info('Listing Google Calendars');
 
+    // List calendars
     const response = await client.calendarList.list();
 
-    logger.info(`Successfully fetched ${response.data.items.length} calendars`);
-    
+    // Transform and return calendars
     return response.data.items.map(calendar => ({
       id: calendar.id,
       summary: calendar.summary,
@@ -319,48 +297,7 @@ export async function listCalendars(client) {
       accessRole: calendar.accessRole,
     }));
   } catch (error) {
-    logger.error(`Failed to fetch Google Calendars: ${error.message}`);
-    throw new Error(`Failed to fetch Google Calendars: ${error.message}`);
-  }
-}
-
-/**
- * Helper function to format date and time for Google Calendar API
- * @param {string} dateTimeStr - Date and time string
- * @returns {Object} Formatted date and time object
- */
-function formatEventDateTime(dateTimeStr) {
-  try {
-    // For full ISO datetime strings (with time)
-    if (dateTimeStr.includes('T')) {
-      return {
-        dateTime: new Date(dateTimeStr).toISOString(),
-        timeZone: config.user.timezone,
-      };
-    }
-    
-    // For date-only strings
-    return {
-      date: dateTimeStr,
-    };
-  } catch (error) {
-    logger.error(`Error formatting date: ${error.message}`);
-    throw new Error(`Invalid date format: ${dateTimeStr}`);
-  }
-}
-
-/**
- * Helper function to add one hour to a datetime string
- * @param {string} dateTimeStr - Date and time string
- * @returns {string} New date and time string with one hour added
- */
-function addHour(dateTimeStr) {
-  try {
-    const date = new Date(dateTimeStr);
-    date.setHours(date.getHours() + 1);
-    return date.toISOString();
-  } catch (error) {
-    logger.error(`Error adding hour to date: ${error.message}`);
-    throw new Error(`Invalid date format: ${dateTimeStr}`);
+    logger.error(`Failed to list Google Calendars: ${error.message}`);
+    throw new Error(`Failed to list calendars: ${error.message}`);
   }
 }
