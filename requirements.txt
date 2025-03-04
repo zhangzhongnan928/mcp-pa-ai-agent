@@ -1,0 +1,7 @@
+mcp>=1.2.0
+httpx
+python-dotenv
+google-api-python-client
+google-auth-oauthlib
+redis
+python-crontab 

@@ -1,109 +1,169 @@
-# MCP Personal Assistant AI Agent
+# MCP Personal Assistant Agent
 
-A powerful personal assistant AI agent built with the Model Context Protocol (MCP) that helps you manage your tasks, schedule, communications, and more.
+A versatile personal assistant AI agent built with the Model Context Protocol (MCP) that helps with calendar, tasks, emails, and more.
 
 ## Overview
 
-This project implements a personal assistant using the Model Context Protocol (MCP), allowing AI assistants like Claude to extend their capabilities through external tools and services. The PA agent can:
+This project is a Model Context Protocol (MCP) server that provides a set of tools for a personal assistant agent. It can be integrated with MCP clients like Claude for Desktop to give AI assistants the ability to:
 
-- Manage your calendar and schedule
+- Manage calendar events
 - Track tasks and to-dos
-- Search and retrieve information from various sources
-- Manage emails and communications
+- Read and send emails
+- Search the web and retrieve information
 - Control smart home devices
-- And more!
 
-## Features
+## Requirements
 
-- **Calendar Management**: Create, edit, and manage calendar events
-- **Task Management**: Create, track, and prioritize tasks
-- **Email Integration**: Read, search, and draft emails
-- **Information Retrieval**: Search the web, local files, and knowledge bases
-- **Smart Home Control**: Manage compatible smart home devices
-- **Personalization**: Learn preferences and adapt to your needs
+⚠️ **IMPORTANT:** Python 3.10 or higher is required for the MCP SDK. The server will not work with earlier Python versions.
 
-## Getting Started
+- Python 3.10+ 
+- MCP SDK 1.2.0+
+- Required Python packages (see requirements.txt)
 
-### Prerequisites
-
-- Node.js (v16+)
-- Claude Desktop or another MCP-compatible assistant
-- API credentials for integrated services (calendar, email, etc.)
-
-### Installation
+## Installation
 
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/zhangzhongnan928/mcp-pa-ai-agent.git
-   cd mcp-pa-ai-agent
-   ```
+```bash
+git clone https://github.com/yourusername/mcp-pa-ai-agent.git
+cd mcp-pa-ai-agent
+```
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+2. Ensure you have Python 3.10+:
+```bash
+python --version
+```
 
-3. Configure your environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your API keys and credentials
-   ```
+3. If your system Python is older than 3.10, set up a compatible environment:
+```bash
+# Using conda
+conda create -n mcp-env python=3.10
+conda activate mcp-env
 
-4. Start the MCP server:
-   ```bash
-   npm start
-   ```
+# OR using venv (if Python 3.10+ is installed elsewhere)
+python3.10 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
-### Adding to Claude Desktop
+4. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-1. Open Claude Desktop
-2. Add the following to your `claude_desktop_config.json`:
-   ```json
-   {
-     "mcpServers": {
-       "pa-agent": {
-         "command": "npx",
-         "args": ["-y", "mcp-pa-ai-agent"]
-       }
-     }
-   }
-   ```
-3. Restart Claude Desktop
+5. Configure environment variables by copying the example file:
+```bash
+cp .env.example .env
+```
 
-## Architecture
+6. Edit the `.env` file with your API credentials and settings.
 
-The PA agent is built on several MCP capabilities:
+## Running the Server
 
-- **Calendar Module**: Interfaces with Google Calendar, Apple Calendar, Outlook, etc.
-- **Task Module**: Manages task tracking systems (Todoist, local tasks, etc.)
-- **Communication Module**: Handles email and messaging platforms
-- **Knowledge Module**: Searches and retrieves information
-- **Device Control Module**: Interfaces with smart home devices
+Start the MCP server with:
+
+```bash
+python mcp_server.py
+```
+
+The server will start and listen for MCP client connections.
+
+## Connecting to Claude for Desktop
+
+1. Install [Claude for Desktop](https://claude.ai/desktop)
+
+2. Configure Claude for Desktop to use this MCP server by editing the configuration file at:
+   - MacOS/Linux: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+3. Add the following configuration:
+```json
+{
+  "mcpServers": {
+    "personal-assistant": {
+      "command": "/path/to/python",
+      "args": [
+        "/absolute/path/to/mcp-pa-ai-agent/mcp_server.py"
+      ]
+    }
+  }
+}
+```
+
+If you're using a virtual environment, make sure to point to the Python executable in that environment.
+
+4. Restart Claude for Desktop
+
+## Available Tools
+
+### Calendar
+- `get_events`: Retrieve upcoming calendar events
+- `create_event`: Schedule a new calendar event
+
+### Tasks
+- `list_tasks`: View all tasks or filter by status
+- `add_task`: Create a new task
+- `update_task_status`: Mark tasks as pending, in-progress, or completed
+
+### Email
+- `get_emails`: List recent emails from your inbox
+- `read_email`: View the full content of a specific email
+- `send_email`: Compose and send a new email
+
+### Knowledge
+- `web_search`: Search the web for information
+- `get_weather`: Get current weather information
+- `get_news`: Retrieve latest news articles
+
+### Smart Home
+- `list_devices`: View all smart home devices
+- `control_device`: Control smart home devices (lights, thermostats, etc.)
+- `get_device_state`: Get detailed information about a device's current state
 
 ## Configuration
 
-Configuration options are available in `config.js`. You can customize:
+The server requires various API keys and credentials to access different services:
 
-- Available modules
-- Service preferences
-- Authentication methods
-- User preferences
+- **Google API**: For calendar and email functionality (OAuth2 credentials)
+- **Weather API**: For weather information
+- **News API**: For news retrieval
+- **Home Assistant**: For smart home control
+
+Refer to the `.env.example` file for all configurable options.
+
+## Troubleshooting
+
+### Python Version Issues
+
+If you see an error like:
+```
+Error: Python 3.10 or higher is required for the MCP server.
+```
+
+You need to upgrade your Python version or use a virtual environment with Python 3.10+.
+
+### MCP SDK Installation Issues
+
+If you encounter problems installing the MCP SDK:
+```
+ERROR: Could not find a version that satisfies the requirement mcp>=1.2.0
+```
+
+Make sure you're using Python 3.10+ and pip is updated:
+```bash
+pip install --upgrade pip
+```
+
+## Development
+
+To add new functionality to the server, you can:
+
+1. Create a new module in the `modules/` directory
+2. Implement functions with the `@mcp.tool()` decorator
+3. Import your module in `mcp_server.py`
+
+## License
+
+MIT
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- [Model Context Protocol](https://github.com/modelcontextprotocol) for the MCP framework
-- Anthropic for Claude and supporting the MCP ecosystem
